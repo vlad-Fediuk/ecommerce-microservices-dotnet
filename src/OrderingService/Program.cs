@@ -2,7 +2,6 @@ using ECommerce.Shared.Filters;
 using ECommerce.Shared.Handlers;
 using ECommerce.Shared.Protos;
 using ECommerce.Shared.Security;
-using ECommerce.Shared.Supabase;
 using FluentValidation;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.OpenApi;
@@ -13,12 +12,15 @@ using OrderingService.Features.Orders;
 
 var builder = WebApplication.CreateBuilder(args);
 
-builder.Services.AddDbContext<OrderingDbContext>((serviceProvider, options) =>
+if (!builder.Environment.IsEnvironment("Testing"))
 {
-    var connectionString = serviceProvider.GetRequiredService<IConfiguration>().GetConnectionString("DefaultConnection")
-        ?? throw new InvalidOperationException("Connection string 'DefaultConnection' not found.");
-    options.UseNpgsql(connectionString);
-});
+    builder.Services.AddDbContext<OrderingDbContext>((serviceProvider, options) =>
+    {
+        var connectionString = serviceProvider.GetRequiredService<IConfiguration>().GetConnectionString("DefaultConnection")
+            ?? throw new InvalidOperationException("Connection string 'DefaultConnection' not found.");
+        options.UseNpgsql(connectionString);
+    });
+}
 
 builder.Services.AddJwtAuth(builder.Configuration);
 
@@ -30,8 +32,6 @@ builder.Services.AddGrpcClient<CatalogGrpcService.CatalogGrpcServiceClient>((ser
 
 builder.Services.AddScoped<ICatalogLookup, CatalogLookup>();
 builder.Services.AddScoped<IOrderingService, OrderWorkflowService>();
-
-builder.Services.AddSupabaseClient(builder.Configuration);
 
 builder.Services.AddValidatorsFromAssemblyContaining<Program>();
 
@@ -107,7 +107,14 @@ app.MapGet("/", () => Results.Redirect("/swagger")).ExcludeFromDescription();
 
 if (!app.Environment.IsEnvironment("Testing"))
 {
-    await app.InitializeDatabaseAsync();
+    try
+    {
+        await app.InitializeDatabaseAsync();
+    }
+    catch (Exception ex)
+    {
+        app.Logger.LogError(ex, "Database initialization failed on startup.");
+    }
 }
 
 app.Run();

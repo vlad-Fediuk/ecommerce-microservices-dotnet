@@ -39,6 +39,21 @@ public class SecurityAndRateLimitingTests : IClassFixture<GatewayTestFactory>
     }
 
     [Fact]
+    public async Task ЗапитБезТокенаАлеЗПідробленимиЗаголовками_Повертає401Unauthorized()
+    {
+        _factory.Reset();
+        var client = _factory.CreateClient();
+        client.DefaultRequestHeaders.Add("X-Forwarded-For", "192.168.1.105");
+        client.DefaultRequestHeaders.Add("X-User-Id", Guid.NewGuid().ToString());
+        client.DefaultRequestHeaders.Add("X-User-Roles", RoleNames.Admin);
+        client.DefaultRequestHeaders.Add("X-User-Permissions", Permissions.System.ManageCache);
+
+        var response = await client.GetAsync("/api/v1/cache/metrics");
+
+        response.StatusCode.Should().Be(HttpStatusCode.Unauthorized);
+    }
+
+    [Fact]
     public async Task ЗапитЗНеваліднимТокеном_Повертає401ProblemDetails()
     {
         _factory.Reset();

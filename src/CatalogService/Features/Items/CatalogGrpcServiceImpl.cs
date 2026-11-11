@@ -70,7 +70,7 @@ public class CatalogGrpcServiceImpl : CatalogGrpcService.CatalogGrpcServiceBase
 
             if (!itemsById.TryGetValue(itemId, out var item) || !item.IsActive)
             {
-                throw new RpcException(new Status(StatusCode.NotFound, $"Item '{itemId}' was not found."));
+                throw new RpcException(new Status(StatusCode.NotFound, $"Товар з Id '{itemId}' не знайдено."));
             }
 
             if (item.StockQuantity < quantity)
@@ -85,16 +85,19 @@ public class CatalogGrpcServiceImpl : CatalogGrpcService.CatalogGrpcServiceBase
             }
         }
 
+        var response = new ReserveStockResponse { Success = true };
+
         foreach (var (itemId, quantity) in aggregated)
         {
             var item = itemsById[itemId];
             item.StockQuantity -= quantity;
             _repository.Update(item);
+            response.Items.Add(ToResponse(item));
         }
 
         await _repository.SaveChangesAsync(context.CancellationToken);
 
-        return new ReserveStockResponse { Success = true };
+        return response;
     }
 
     public override async Task<ReleaseStockResponse> ReleaseStock(ReleaseStockRequest request, ServerCallContext context)

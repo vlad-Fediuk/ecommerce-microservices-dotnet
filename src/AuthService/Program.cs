@@ -5,19 +5,21 @@ using AuthService.Models;
 using ECommerce.Shared.Filters;
 using ECommerce.Shared.Handlers;
 using ECommerce.Shared.Security;
-using ECommerce.Shared.Supabase;
 using FluentValidation;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.OpenApi;
 
 var builder = WebApplication.CreateBuilder(args);
 
-builder.Services.AddDbContext<AuthDbContext>((sp, options) =>
+if (!builder.Environment.IsEnvironment("Testing"))
 {
-    var connectionString = sp.GetRequiredService<IConfiguration>().GetConnectionString("DefaultConnection")
-        ?? throw new InvalidOperationException("Connection string 'DefaultConnection' not found.");
-    options.UseNpgsql(connectionString);
-});
+    builder.Services.AddDbContext<AuthDbContext>((sp, options) =>
+    {
+        var connectionString = sp.GetRequiredService<IConfiguration>().GetConnectionString("DefaultConnection")
+            ?? throw new InvalidOperationException("Connection string 'DefaultConnection' not found.");
+        options.UseNpgsql(connectionString);
+    });
+}
 
 builder.Services.AddScoped<IBaseRepository<Role>, BaseRepository<Role>>();
 builder.Services.AddScoped<IUserRepository, UserRepository>();
@@ -26,8 +28,6 @@ builder.Services.AddScoped<IRefreshTokenRepository, RefreshTokenRepository>();
 builder.Services.AddScoped<ITokenService, TokenService>();
 builder.Services.AddScoped<IAuthService, AuthService.Features.Auth.AuthService>();
 builder.Services.AddScoped<IUserService, UserService>();
-
-builder.Services.AddSupabaseClient(builder.Configuration);
 
 builder.Services.AddValidatorsFromAssemblyContaining<Program>();
 
@@ -74,7 +74,14 @@ var app = builder.Build();
 
 if (!app.Environment.IsEnvironment("Testing"))
 {
-    await app.InitializeDatabaseAsync();
+    try
+    {
+        await app.InitializeDatabaseAsync();
+    }
+    catch (Exception ex)
+    {
+        app.Logger.LogError(ex, "Database initialization failed on startup.");
+    }
 }
 
 app.UseExceptionHandler();

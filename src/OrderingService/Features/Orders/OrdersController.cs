@@ -8,6 +8,7 @@ namespace OrderingService.Features.Orders;
 
 [ApiController]
 [Route("api/orders")]
+[Route("api/v1/orders")]
 [Tags("Orders")]
 public class OrdersController : ControllerBase
 {

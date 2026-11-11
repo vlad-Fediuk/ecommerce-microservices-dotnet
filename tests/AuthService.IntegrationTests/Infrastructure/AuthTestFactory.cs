@@ -11,14 +11,13 @@ using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.IdentityModel.Tokens;
-using Npgsql;
 using Xunit;
 
 namespace AuthService.IntegrationTests.Infrastructure;
 
 public class AuthTestFactory : WebApplicationFactory<Program>, IAsyncLifetime
 {
-    private const string TestConnectionString = "Host=localhost;Port=5432;Database=EcommerceAuthTestDb;Username=postgres;Password=1111";
+    private readonly string _dbName = $"AuthTestDb_{Guid.NewGuid():N}";
     public const string TestJwtKey = "SuperSecretKeyForJwtAuthenticationMustBeAtLeast32BytesLong!";
     public const string TestIssuer = "ECommerceApi";
     public const string TestAudience = "ECommerceApi";
@@ -31,36 +30,32 @@ public class AuthTestFactory : WebApplicationFactory<Program>, IAsyncLifetime
         {
             configuration.AddInMemoryCollection(new Dictionary<string, string?>
             {
-                ["ConnectionStrings:DefaultConnection"] = TestConnectionString,
                 ["Jwt:Key"] = TestJwtKey,
                 ["Jwt:Issuer"] = TestIssuer,
                 ["Jwt:Audience"] = TestAudience
             });
         });
+
+        builder.ConfigureServices(services =>
+        {
+            services.AddDbContext<AuthDbContext>(options =>
+                options.UseInMemoryDatabase(_dbName));
+        });
     }
 
     public async Task InitializeAsync()
     {
-        var databaseName = new NpgsqlConnectionStringBuilder(TestConnectionString).Database;
-        if (databaseName is null || !databaseName.EndsWith("TestDb", StringComparison.Ordinal))
-        {
-            throw new InvalidOperationException("Integration tests must run against a dedicated *TestDb database.");
-        }
-
         using var scope = Services.CreateScope();
         var db = scope.ServiceProvider.GetRequiredService<AuthDbContext>();
-        await db.Database.EnsureDeletedAsync();
-        await db.Database.MigrateAsync();
-
-        await db.Database.ExecuteSqlRawAsync(
-            """SELECT setval(pg_get_serial_sequence('"Roles"', 'Id'), COALESCE((SELECT MAX("Id") FROM "Roles"), 1));""");
+        await db.Database.EnsureCreatedAsync();
 
         var existingRoles = await db.Roles.Select(r => r.Name).ToListAsync();
+        var nextRoleId = (await db.Roles.MaxAsync(r => (int?)r.Id) ?? 0) + 1;
         foreach (var roleName in RoleNames.All)
         {
             if (!existingRoles.Contains(roleName, StringComparer.OrdinalIgnoreCase))
             {
-                db.Roles.Add(new Role { Name = roleName });
+                db.Roles.Add(new Role { Id = nextRoleId++, Name = roleName });
             }
         }
         await db.SaveChangesAsync();

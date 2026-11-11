@@ -84,7 +84,7 @@ public class FakeCatalogClient : CatalogGrpcService.CatalogGrpcServiceClient
         {
             if (!_items.TryGetValue(reqItem.ItemId, out var item) || !item.IsActive)
             {
-                return Failed<ReserveStockResponse>(StatusCode.NotFound);
+                return Failed<ReserveStockResponse>(StatusCode.NotFound, $"Товар з Id '{reqItem.ItemId}' не знайдено.");
             }
 
             if (item.StockQuantity < reqItem.Quantity)
@@ -99,12 +99,16 @@ public class FakeCatalogClient : CatalogGrpcService.CatalogGrpcServiceClient
             }
         }
 
+        var response = new ReserveStockResponse { Success = true };
+
         foreach (var reqItem in request.Items)
         {
-            _items[reqItem.ItemId].StockQuantity -= reqItem.Quantity;
+            var item = _items[reqItem.ItemId];
+            item.StockQuantity -= reqItem.Quantity;
+            response.Items.Add(item.Clone());
         }
 
-        return Succeeded(new ReserveStockResponse { Success = true });
+        return Succeeded(response);
     }
 
     public override AsyncUnaryCall<ReleaseStockResponse> ReleaseStockAsync(ReleaseStockRequest request, CallOptions options)
@@ -132,9 +136,9 @@ public class FakeCatalogClient : CatalogGrpcService.CatalogGrpcServiceClient
         () => new Metadata(),
         () => { });
 
-    private static AsyncUnaryCall<T> Failed<T>(StatusCode statusCode)
+    private static AsyncUnaryCall<T> Failed<T>(StatusCode statusCode, string detail = "Simulated catalog failure")
     {
-        var status = new Status(statusCode, "Simulated catalog failure");
+        var status = new Status(statusCode, detail);
         return new AsyncUnaryCall<T>(
             Task.FromException<T>(new RpcException(status)),
             Task.FromResult(new Metadata()),

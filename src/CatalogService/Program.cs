@@ -4,7 +4,6 @@ using CatalogService.Features.Items;
 using ECommerce.Shared.Filters;
 using ECommerce.Shared.Handlers;
 using ECommerce.Shared.Security;
-using ECommerce.Shared.Supabase;
 using FluentValidation;
 using Microsoft.AspNetCore.Server.Kestrel.Core;
 using Microsoft.EntityFrameworkCore;
@@ -26,18 +25,19 @@ if (!builder.Environment.IsEnvironment("Testing"))
 
 builder.Services.AddGrpc();
 
-builder.Services.AddDbContext<CatalogDbContext>((sp, options) =>
+if (!builder.Environment.IsEnvironment("Testing"))
 {
-    var connectionString = sp.GetRequiredService<IConfiguration>().GetConnectionString("DefaultConnection")
-        ?? throw new InvalidOperationException("Connection string 'DefaultConnection' not found.");
-    options.UseNpgsql(connectionString);
-});
+    builder.Services.AddDbContext<CatalogDbContext>((sp, options) =>
+    {
+        var connectionString = sp.GetRequiredService<IConfiguration>().GetConnectionString("DefaultConnection")
+            ?? throw new InvalidOperationException("Connection string 'DefaultConnection' not found.");
+        options.UseNpgsql(connectionString);
+    });
+}
 
 builder.Services.AddScoped<ICatalogRepository, CatalogRepository>();
 builder.Services.AddScoped<ICategoryRepository, CategoryRepository>();
 builder.Services.AddScoped<ICatalogService, CatalogService.Features.Items.CatalogService>();
-
-builder.Services.AddSupabaseClient(builder.Configuration);
 
 builder.Services.AddValidatorsFromAssemblyContaining<Program>();
 
@@ -84,15 +84,22 @@ var app = builder.Build();
 
 if (!app.Environment.IsEnvironment("Testing"))
 {
-    using var scope = app.Services.CreateScope();
-    var db = scope.ServiceProvider.GetRequiredService<CatalogDbContext>();
-    if (db.Database.IsRelational())
+    try
     {
-        await db.Database.MigrateAsync();
+        using var scope = app.Services.CreateScope();
+        var db = scope.ServiceProvider.GetRequiredService<CatalogDbContext>();
+        if (db.Database.IsRelational())
+        {
+            await db.Database.MigrateAsync();
+        }
+        else
+        {
+            await db.Database.EnsureCreatedAsync();
+        }
     }
-    else
+    catch (Exception ex)
     {
-        await db.Database.EnsureCreatedAsync();
+        app.Logger.LogError(ex, "Database initialization failed on startup.");
     }
 }
 

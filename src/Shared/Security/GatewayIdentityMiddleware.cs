@@ -16,7 +16,7 @@ public class GatewayIdentityMiddleware
     {
         if (context.User.Identity?.IsAuthenticated == true)
         {
-            if (!context.User.TryGetUserId(out var existingUserId))
+            if (!context.User.TryGetUserId(out _))
             {
                 if (context.Request.Headers.TryGetValue("X-User-Id", out var headerId) &&
                     Guid.TryParse(headerId.FirstOrDefault(), out var parsedHeaderId))
@@ -32,21 +32,6 @@ public class GatewayIdentityMiddleware
             {
                 EnrichRolesAndPermissionsFromHeaders(context);
             }
-        }
-        else if (!context.Request.Headers.ContainsKey("Authorization") &&
-                 context.Request.Headers.TryGetValue("X-User-Id", out var rawUserId) &&
-                 Guid.TryParse(rawUserId.FirstOrDefault(), out var userId))
-        {
-            var claims = new List<Claim>
-            {
-                new(ClaimTypes.NameIdentifier, userId.ToString()),
-                new("sub", userId.ToString())
-            };
-
-            AppendHeaderRolesAndPermissions(context, claims);
-
-            var identity = new ClaimsIdentity(claims, "GatewayHeader");
-            context.User = new ClaimsPrincipal(identity);
         }
 
         await _next(context);
@@ -96,40 +81,6 @@ public class GatewayIdentityMiddleware
                     identity.AddClaim(new Claim(Permissions.ClaimType, perm));
                 }
             }
-        }
-    }
-
-    private static void AppendHeaderRolesAndPermissions(HttpContext context, List<Claim> claims)
-    {
-        var roles = new List<string>();
-        if (context.Request.Headers.TryGetValue("X-User-Roles", out var rolesHeader))
-        {
-            roles.AddRange(rolesHeader.ToString()
-                .Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries));
-        }
-
-        if (roles.Count == 0)
-        {
-            roles.Add(RoleNames.User);
-        }
-
-        foreach (var role in roles.Distinct(StringComparer.OrdinalIgnoreCase))
-        {
-            claims.Add(new Claim(ClaimTypes.Role, role));
-        }
-
-        var permissions = new HashSet<string>(RolePermissions.GetPermissionsForRoles(roles), StringComparer.OrdinalIgnoreCase);
-        if (context.Request.Headers.TryGetValue("X-User-Permissions", out var permsHeader))
-        {
-            foreach (var perm in permsHeader.ToString().Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries))
-            {
-                permissions.Add(perm);
-            }
-        }
-
-        foreach (var perm in permissions)
-        {
-            claims.Add(new Claim(Permissions.ClaimType, perm));
         }
     }
 }

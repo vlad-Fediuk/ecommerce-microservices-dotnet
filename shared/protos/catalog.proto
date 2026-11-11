@@ -58,6 +58,7 @@ message ReserveStockResponse {
   string error_message = 2;
   string failed_item_id = 3;
   int32 available_quantity = 4;
+  repeated CatalogItemResponse items = 5;
 }
 
 message ReleaseStockRequest {

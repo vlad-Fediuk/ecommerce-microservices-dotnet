@@ -7,22 +7,15 @@ public static class DatabaseInitializer
     public static async Task InitializeDatabaseAsync(this WebApplication app)
     {
         using var scope = app.Services.CreateScope();
-        var serviceProvider = scope.ServiceProvider;
-        var dbContext = serviceProvider.GetRequiredService<OrderingDbContext>();
+        var dbContext = scope.ServiceProvider.GetRequiredService<OrderingDbContext>();
 
-        await dbContext.Database.MigrateAsync();
-
-        var legacyConnectionString = app.Configuration["LegacyImport:ConnectionString"];
-        if (string.IsNullOrWhiteSpace(legacyConnectionString))
+        if (dbContext.Database.IsRelational())
         {
-            return;
+            await dbContext.Database.MigrateAsync();
         }
-
-        var importer = new LegacyOrderImporter(
-            dbContext,
-            legacyConnectionString,
-            serviceProvider.GetRequiredService<ILogger<LegacyOrderImporter>>());
-
-        await importer.ImportAsync(CancellationToken.None);
+        else
+        {
+            await dbContext.Database.EnsureCreatedAsync();
+        }
     }
 }

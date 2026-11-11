@@ -12,14 +12,13 @@ using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.IdentityModel.Tokens;
-using Npgsql;
 using Xunit;
 
 namespace CatalogService.IntegrationTests.Infrastructure;
 
 public class CatalogTestFactory : WebApplicationFactory<Program>, IAsyncLifetime
 {
-    private const string TestConnectionString = "Host=localhost;Port=5432;Database=EcommerceCatalogTestDb;Username=postgres;Password=1111";
+    private readonly string _dbName = $"CatalogTestDb_{Guid.NewGuid():N}";
     public const string TestJwtKey = "SuperSecretKeyForJwtAuthenticationMustBeAtLeast32BytesLong!";
     public const string TestIssuer = "ECommerceApi";
     public const string TestAudience = "ECommerceApi";
@@ -32,26 +31,24 @@ public class CatalogTestFactory : WebApplicationFactory<Program>, IAsyncLifetime
         {
             configuration.AddInMemoryCollection(new Dictionary<string, string?>
             {
-                ["ConnectionStrings:DefaultConnection"] = TestConnectionString,
                 ["Jwt:Key"] = TestJwtKey,
                 ["Jwt:Issuer"] = TestIssuer,
                 ["Jwt:Audience"] = TestAudience
             });
         });
+
+        builder.ConfigureServices(services =>
+        {
+            services.AddDbContext<CatalogDbContext>(options =>
+                options.UseInMemoryDatabase(_dbName));
+        });
     }
 
     public async Task InitializeAsync()
     {
-        var databaseName = new NpgsqlConnectionStringBuilder(TestConnectionString).Database;
-        if (databaseName is null || !databaseName.EndsWith("TestDb", StringComparison.Ordinal))
-        {
-            throw new InvalidOperationException("Integration tests must run against a dedicated *TestDb database.");
-        }
-
         using var scope = Services.CreateScope();
         var db = scope.ServiceProvider.GetRequiredService<CatalogDbContext>();
-        await db.Database.EnsureDeletedAsync();
-        await db.Database.MigrateAsync();
+        await db.Database.EnsureCreatedAsync();
     }
 
     public HttpClient CreateAuthorizedClient(Guid userId, params string[] roles)

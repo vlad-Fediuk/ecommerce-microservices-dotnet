@@ -69,7 +69,6 @@ services:
       ASPNETCORE_ENVIRONMENT: Docker
       ASPNETCORE_URLS: http://+:5003
       ConnectionStrings__DefaultConnection: Host=postgres;Port=5432;Database=EcommerceOrdersDb;Username=${POSTGRES_USER:-postgres};Password=${POSTGRES_PASSWORD:-1111}
-      LegacyImport__ConnectionString: Host=postgres;Port=5432;Database=EcommerceDb;Username=${POSTGRES_USER:-postgres};Password=${POSTGRES_PASSWORD:-1111}
       Services__CatalogGrpc: http://catalog-service:5102
       Jwt__Key: ${JWT_SECRET_KEY:-SuperSecretKeyForJwtAuthenticationMustBeAtLeast32BytesLong!}
       Jwt__Issuer: ECommerceApi
@@ -103,17 +102,6 @@ services:
         condition: service_started
       ordering-service:
         condition: service_started
-
-  client:
-    container_name: ecommerce-client
-    build:
-      context: ./client
-      dockerfile: Dockerfile
-    restart: unless-stopped
-    ports:
-      - "5173:80"
-    depends_on:
-      - api-gateway
 
 volumes:
   pgdata:

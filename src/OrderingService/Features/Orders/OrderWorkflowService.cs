@@ -40,22 +40,7 @@ public class OrderWorkflowService : IOrderingService
             .Select(g => new OrderItemRequest(g.Key, g.Sum(x => x.Quantity)))
             .ToList();
 
-        var catalogItems = await _catalog.GetItemsAsync(aggregatedItems.Select(i => i.ProductId), cancellationToken);
-
-        foreach (var item in aggregatedItems)
-        {
-            if (!catalogItems.TryGetValue(item.ProductId, out var catalogItem) || !catalogItem.IsActive)
-            {
-                throw new NotFoundException($"Товар з Id '{item.ProductId}' не знайдено.");
-            }
-
-            if (catalogItem.StockQuantity < item.Quantity)
-            {
-                throw new ConflictException($"Недостатньо товару '{catalogItem.Title}' на складі. Доступно: {catalogItem.StockQuantity}, запитано: {item.Quantity}.");
-            }
-        }
-
-        await _catalog.ReserveStockAsync(aggregatedItems, cancellationToken);
+        var catalogItems = await _catalog.ReserveStockAsync(aggregatedItems, cancellationToken);
 
         var order = new Order
         {
@@ -103,7 +88,7 @@ public class OrderWorkflowService : IOrderingService
         }
         catch (DbUpdateException) when (scopedKey is not null)
         {
-            await _catalog.ReleaseStockAsync(aggregatedItems, cancellationToken);
+            await _catalog.ReleaseStockAsync(aggregatedItems, CancellationToken.None);
             _dbContext.ChangeTracker.Clear();
             var concurrentlyCreated = await TryReplayAsync(scopedKey, cancellationToken);
             if (concurrentlyCreated is null)
@@ -112,6 +97,11 @@ public class OrderWorkflowService : IOrderingService
             }
 
             return new CreateOrderResult(concurrentlyCreated, true);
+        }
+        catch (Exception)
+        {
+            await _catalog.ReleaseStockAsync(aggregatedItems, CancellationToken.None);
+            throw;
         }
 
         return new CreateOrderResult(response, false);

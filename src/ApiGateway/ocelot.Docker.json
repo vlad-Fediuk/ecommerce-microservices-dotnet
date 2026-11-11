@@ -119,6 +119,52 @@
       }
     },
     {
+      "DownstreamPathTemplate": "/api/v1/orders",
+      "DownstreamScheme": "http",
+      "DownstreamHostAndPorts": [
+        {
+          "Host": "ordering-service",
+          "Port": 5003
+        }
+      ],
+      "UpstreamPathTemplate": "/api/v1/orders",
+      "UpstreamHttpMethod": [
+        "Get",
+        "Post",
+        "Put",
+        "Delete",
+        "Patch",
+        "Options"
+      ],
+      "AuthenticationOptions": {
+        "AuthenticationProviderKey": "Bearer",
+        "AllowedScopes": []
+      }
+    },
+    {
+      "DownstreamPathTemplate": "/api/v1/orders/{everything}",
+      "DownstreamScheme": "http",
+      "DownstreamHostAndPorts": [
+        {
+          "Host": "ordering-service",
+          "Port": 5003
+        }
+      ],
+      "UpstreamPathTemplate": "/api/v1/orders/{everything}",
+      "UpstreamHttpMethod": [
+        "Get",
+        "Post",
+        "Put",
+        "Delete",
+        "Patch",
+        "Options"
+      ],
+      "AuthenticationOptions": {
+        "AuthenticationProviderKey": "Bearer",
+        "AllowedScopes": []
+      }
+    },
+    {
       "DownstreamPathTemplate": "/api/orders",
       "DownstreamScheme": "http",
       "DownstreamHostAndPorts": [

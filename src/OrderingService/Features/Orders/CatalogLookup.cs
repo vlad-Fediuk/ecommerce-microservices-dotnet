@@ -44,7 +44,7 @@ public class CatalogLookup : ICatalogLookup
         }
     }
 
-    public async Task ReserveStockAsync(IReadOnlyList<OrderItemRequest> items, CancellationToken cancellationToken)
+    public async Task<IReadOnlyDictionary<Guid, CatalogItemResponse>> ReserveStockAsync(IReadOnlyList<OrderItemRequest> items, CancellationToken cancellationToken)
     {
         var request = new ReserveStockRequest();
         request.Items.AddRange(items.Select(i => new StockItemQuantity
@@ -66,10 +66,15 @@ public class CatalogLookup : ICatalogLookup
                     ? "Недостатньо товару на складі."
                     : response.ErrorMessage);
             }
+
+            return response.Items.ToDictionary(i => Guid.Parse(i.Id));
         }
         catch (RpcException ex) when (ex.StatusCode == StatusCode.NotFound)
         {
-            throw new NotFoundException("Товар не знайдено.");
+            var message = !string.IsNullOrWhiteSpace(ex.Status.Detail) && ex.Status.Detail.StartsWith("Товар з Id")
+                ? ex.Status.Detail
+                : $"Товар з Id '{items.First().ProductId}' не знайдено.";
+            throw new NotFoundException(message);
         }
         catch (RpcException ex) when (ex.StatusCode is StatusCode.DeadlineExceeded or StatusCode.Unavailable)
         {
